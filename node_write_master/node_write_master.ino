@@ -1,8 +1,12 @@
 #include <ESP8266WiFi.h>
 
+//https://iot23-99a34-default-rtdb.europe-west1.firebasedatabase.app/
+//AIzaSyAdKdWm_o2VM6r8QctncsX-aKVjQdLsadw
+#include <Firebase_ESP_Client.h>
+
 #include<SPI.h>
 
-char buff[] = "S\n";
+//char buff[] = "S\n";
 char kuldes_tesztje[20];
 char returnbuff[32];
 
@@ -11,8 +15,12 @@ SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 volatile bool motorState;
 
 // Wi-Fi settings
-const char* ssid = "DIGI-D69p";
-const char* password = "8wjBc9cg";
+//const char* ssid = "DIGI-D69p";
+//const char* password = "8wjBc9cg";
+
+// Wi-Fi settings - uny
+const char* ssid = "Neumann";
+const char* password = "neumann1";
 
 // Values received from payload
 String brightnessValue = "";
@@ -94,13 +102,16 @@ void loop()
   }
   Serial.println(request);
 
-  buff[0] = motorState ? '1' : '0';
+//  buff[0] = motorState ? '1' : '0';
   //elkuldi az uzenetet
-  for (int i = 0; i < sizeof(buff); i++)
-  {
-    kuldes_tesztje[i] = SPI.transfer(buff[i]);
-    delay(1);
-  }
+  SPI.transfer('m');
+  SPI.transfer(motorState ? '1' : '0');
+  SPI.transfer('.');
+//  for (int i = 0; i < sizeof(buff); i++)
+//  {
+//    kuldes_tesztje[i] = SPI.transfer(buff[i]);
+//    delay(1);
+//  }
 
   //kuld meg 100 pontot,ezeket az Arduino felulirja
   //ami visszajon azt kiolvassuk betesszuk a returnbuffbe
@@ -111,8 +122,8 @@ void loop()
   }
   SPI.endTransaction();
 
-  for (int i = 1; i < sizeof(buff) + 1; i++)
-    Serial.print(kuldes_tesztje[i]);
+//  for (int i = 1; i < sizeof(buff) + 1; i++)
+//    Serial.print(kuldes_tesztje[i]);
 
   Serial.println("Reply: ");
   handleSignals();

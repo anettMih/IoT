@@ -346,12 +346,13 @@ ISR(SPI_STC_vect)
 
   //SPDR = 'k';
 
-  if (fogadunk)
+  if (c == 'm')
   {
     bejovo_uzenet[index_bejovo] = c;
     index_bejovo++;
+    remoteMotor = SPDR == '1' ? true : false;
+    kuldunk = true;
   }
-
 
   if (kuldunk && allRead)
   {
@@ -368,13 +369,13 @@ ISR(SPI_STC_vect)
     index_kimeno++;
   }
 
-  if (c == '\n')
-  {
-    Serial.println("New line");
-    fogadunk = false;
-    kuldunk = true;
-    index_kimeno = 0;
-  }
+//  if (c == '\n')
+//  {
+//    Serial.println("New line");
+//    fogadunk = false;
+//    kuldunk = true;
+//    index_kimeno = 0;
+//  }
 }
 
 
