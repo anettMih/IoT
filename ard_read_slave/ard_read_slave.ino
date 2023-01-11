@@ -137,14 +137,17 @@ SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 char bejovo_uzenet[100];
 String sendMessage;
 
-volatile byte message_len;
-volatile byte index_bejovo;
-volatile byte index_kimeno;
-volatile bool fogadunk;
-volatile bool kuldunk;
-volatile bool vege;
-volatile bool allRead;
-volatile bool remoteMotor;
+
+byte index_bejovo;
+byte index_kimeno;
+bool fogadunk;
+bool kuldunk;
+bool vege;
+bool allRead;
+bool remoteMotor;
+
+
+bool sending_on = false;
 
 void setup() {
   Serial.begin (9600);
@@ -160,7 +163,6 @@ void setup() {
 
   index_bejovo = 0;
   index_kimeno = 0;
-  message_len = 0;
   sendMessage = "";
   remoteMotor = false;
 
@@ -199,16 +201,18 @@ void setup() {
   motorState = false;
   myThread.onRun(startMotor);
   controll.add(&myThread);
-  
+
 }
 
 void loop() {
   controll.run();
   if (vege)
   {
-    Serial.println("END:");
+    //    Serial.println("END:");
+    Serial.print("Motor from web: " );
     for (int i = 0; i < index_bejovo; i++)
       Serial.print(bejovo_uzenet[i]);
+    Serial.println();
     remoteMotor = bejovo_uzenet[0] == '1' ? true : false;
     index_bejovo = 0;
     vege = false;
@@ -222,9 +226,11 @@ void loop() {
 
 void collectData()
 {
-  Serial.println("=================================Collect");
-  sendMessage = "";
-  sendMessage += '\0';
+  sending_on = kuldunk;
+  if (!sending_on) {
+    sendMessage = "";
+    sendMessage += '\0';
+  }
   lcd.setCursor(0, 0);
   displayTime();
 
@@ -233,17 +239,18 @@ void collectData()
 
   lcd.setCursor(0, 2);
   displayBrightness();
-
-  sendMessage[message_len] = '\n';
+  if (!sending_on) {
+    sendMessage += '\n';
+  }
   allRead = true;
-  Serial.println(sendMessage);
+  //  Serial.println(sendMessage);
   delay(1000);
+
 }
 
 // ----------- Displaying functions
 void displayTime()
 {
-  message_len = 0;
   DateTime time = rtc.now();
   String timeMessage = time.timestamp(DateTime::TIMESTAMP_FULL);
   appendString(timeMessage);
@@ -259,7 +266,9 @@ void displayTempHumidity()
   {
     Serial.print("Read DHT11 failed, err=");
     Serial.println(err);
-    sendMessage = "";
+    if (!sending_on) {
+      sendMessage = "";
+    }
     return;
   }
 
@@ -280,12 +289,8 @@ void displayBrightness()
   tsl.getEvent(&event);
   String bright = "Light " + String(int(event.light)) + " lux  ";
   appendString(String(int(event.light)));
-
   lcd.print(bright);
-
   displayMotor(int(event.light));
-  Serial.println(motorState);
-  appendString(String(int(motorState)));
 }
 
 void displayMotor(int brightness)
@@ -326,6 +331,7 @@ void displayMotor(int brightness)
     lcd.print("Motor is not running");
     motorState = false;
   }
+  appendString(String(int(motorState)));
 
 }
 
@@ -346,20 +352,17 @@ ISR(SPI_STC_vect)
     index_bejovo++;
   }
 
-  //  if (allRead) {
-  //    Serial.println(sendMessage);
-  //  }
 
   if (kuldunk && allRead)
   {
 
-    if (index_kimeno < sendMessage.length()) {
+    if (index_kimeno < sendMessage.length() - 1) {
       SPDR = sendMessage[index_kimeno];
     }
-    if (index_kimeno == 99) {
+    if (index_kimeno == 32) {
       vege = true;
 
-      Serial.println("END true");
+      //      Serial.println("END true");
       allRead = false;
     }
     index_kimeno++;
@@ -367,7 +370,7 @@ ISR(SPI_STC_vect)
 
   if (c == '\n')
   {
-    Serial.println("Newline");
+    Serial.println("New line");
     fogadunk = false;
     kuldunk = true;
     index_kimeno = 0;
@@ -418,14 +421,14 @@ void showSunChart()
 
 void appendString(String text)
 {
-  //  Serial.print(text);
-  //  Serial.print(" : ");
-  //  Serial.println(text.length());
-  int len = text.length();
-  for (int i = 0; i < len; i++) {
-    sendMessage += text[i];
+
+  if (!sending_on) {
+    int len = text.length();
+    for (int i = 0; i < len; i++) {
+      sendMessage += text[i];
+    }
+    sendMessage += ';';
   }
-  sendMessage += ';';
 }
 
 void startMotor()
