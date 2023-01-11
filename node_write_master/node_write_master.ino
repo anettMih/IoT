@@ -231,16 +231,17 @@ void handleSignals() {
   Serial.print("Light: " + brightnessValue);
   Serial.print("Motor: " + motorValue);
 
-
+  writeToFirebase();
 }
 
+// Sends received values & motorValue to Firebase
 void writeToFirebase()
 {
-if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
+if (Firebase.ready() && signupOK)
 {
-    sendDataPrevMillis = millis();
-    // Write an Int number on the database path test/int
-    if (Firebase.RTDB.setInt(&fbdo, "test/int", count))
+    // sendDataPrevMillis = millis();
+    // Sends values to Firebase, prints them on serial
+    if (Firebase.RTDB.setString(&fbdo, "time", timeValue))
     {
       Serial.println("PASSED");
       Serial.println("PATH: " + fbdo.dataPath());
@@ -253,13 +254,50 @@ if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 15000 || se
     }
     count++;
     
-    // Write an Float number on the database path test/float
-    if (Firebase.RTDB.setFloat(&fbdo, "test/float", 0.01 + random(0,100))){
+    if (Firebase.RTDB.setString(&fbdo, "temp", temperatureValue))
+    {
       Serial.println("PASSED");
       Serial.println("PATH: " + fbdo.dataPath());
       Serial.println("TYPE: " + fbdo.dataType());
     }
-    else {
+    else 
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.setString(&fbdo, "humidity", humidityValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else 
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.setString(&fbdo, "brightness", brightnessValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else 
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.setString(&fbdo, "motor", motorValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else 
+    {
       Serial.println("FAILED");
       Serial.println("REASON: " + fbdo.errorReason());
     }
