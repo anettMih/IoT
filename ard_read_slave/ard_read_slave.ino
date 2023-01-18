@@ -26,20 +26,6 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);
 const int steps_per_rev = 2048;
 Stepper motor(steps_per_rev, IN1, IN3, IN2, IN4);
 
-// Library for multi-threading
-#include <Thread.h>
-#include <ThreadRunOnce.h>
-#include <ThreadController.h>
-Thread myThread = Thread();
-ThreadController controll = ThreadController();
-
-bool light;
-bool dark;
-
-int lightCounter;
-int darkCounter;
-bool motorState;
-
 // Row 1, Col 17
 byte moonChart1[8] = {
   B00000,
@@ -134,17 +120,24 @@ byte sunChart4[8] = {
 
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 
-char bejovo_uzenet[100];
+bool light;
+bool dark;
+
+int lightCounter;
+int darkCounter;
+volatile bool motorState;
+
+char incomingMsg[100];
 String sendMessage;
 String msg;
 
-byte index_bejovo;
-byte index_kimeno;
-bool fogadunk;
-bool kuldunk;
-bool vege;
-bool remoteMotor;
-
+byte sendingIndex;
+byte incomingIndex;
+volatile bool receive;
+volatile bool sending;
+volatile bool done;
+volatile bool remoteMotor;
+volatile bool sendingMotor;
 
 bool sending_on = false;
 
@@ -160,15 +153,15 @@ void setup() {
   //SPI.begin();
   pinMode(MISO, OUTPUT);    //MISOn valaszol
 
-  index_bejovo = 0;
-  index_kimeno = 0;
+  incomingIndex = 0;
+  sendingIndex = 0;
   sendMessage = "";
   msg = "";
   remoteMotor = false;
 
-  fogadunk = true; //elobb fogadunk
-  kuldunk = false; //aztan kuldunk
-  vege = false; //aztan vege
+  receive = true;
+  sending = false;
+  done = false;
 
   SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
 
@@ -198,29 +191,32 @@ void setup() {
   light = false;
   dark = false;
   motorState = false;
-  myThread.onRun(startMotor);
-  controll.add(&myThread);
-
+  sendingMotor = false;
 }
 
 void loop() {
-  controll.run();
-  if (vege)
+
+  startMotor();
+  if (done)
   {
-    //    Serial.println("END:");
     Serial.print("Motor from web: " );
-    for (int i = 0; i < index_bejovo; i++)
-      Serial.print(bejovo_uzenet[i]);
+    for (int i = 0; i < incomingIndex; i++)
+      Serial.print(incomingMsg[i]);
+    if (incomingMsg[0] == '1') {
+      remoteMotor = true;
+    } else {
+      remoteMotor = false;
+    }
     Serial.println();
-    index_bejovo = 0;
-    vege = false;
-    fogadunk = true;
-    kuldunk = false;
+    incomingIndex = 0;
+    done = false;
+    receive = true;
+    sending = false;
   }
   collectData();
 
-
 }
+
 
 void collectData()
 {
@@ -236,11 +232,11 @@ void collectData()
   displayBrightness();
   msg += '\n';
 
-  if (!kuldunk) {
+  if (!sending) {
     sendMessage = "";
     sendMessage = msg;
-        Serial.println(sendMessage.length());
-        Serial.println(sendMessage);
+    Serial.println(sendMessage.length());
+    Serial.println(sendMessage);
   }
   delay(1000);
 
@@ -315,72 +311,52 @@ void displayMotor(int brightness)
     lightCounter = 0;
   }
 
-  //  lcd.setCursor(0, 3);
-
   if (light && dark)
   {
-    //    lcd.print("Motor is running    ");
     light = false;
     dark = false;
-    motorState = true;
+    startMotor();
   }
   else
   {
-    //    lcd.print("Motor is not running");
     motorState = false;
+    lcd.setCursor(0, 3);
+    lcd.print("Motor is not running");
   }
   appendString(String(int(motorState)));
-
+  sendingMotor = false;
 }
 
 
 // SPI interrupt routine
 ISR(SPI_STC_vect)
 {
-  //  Serial.println("SPI interrupt routine");
-
-  //kiolvassuk a kapott karaktert
   char c = SPDR;
 
-
-  if (fogadunk)
+  if (receive)
   {
-//    Serial.println("kap");
-    bejovo_uzenet[index_bejovo] = c;
-    index_bejovo++;
-    remoteMotor = c == '1' ? true : false;
+    incomingMsg[incomingIndex] = c;
+    incomingIndex++;
   }
 
-  if (kuldunk)
+  if (sending)
   {
-    if (index_kimeno < sendMessage.length() - 1) {
-      SPDR = sendMessage[index_kimeno];
-//      Serial.print(sendMessage[index_kimeno]);
+    if (sendingIndex < sendMessage.length() - 1) {
+      SPDR = sendMessage[sendingIndex];
     }
-    if (index_kimeno == sendMessage.length()) {
-      vege = true;
-      fogadunk = true;
+    if (sendingIndex == sendMessage.length()) {
+      done = true;
+      receive = true;
     }
-    index_kimeno++;
-
+    sendingIndex++;
   }
 
-    if (c == '\n')
+  if (c == '\n')
   {
-//    if (sendMessage.length() == 0) {
-//      SPDR = '0';
-//      kuldunk = false;
-////      Serial.println("new line + wait");
-//    } else {
-////      Serial.println("new line + send");
-//      SPDR = '1';
-      fogadunk = false;
-      kuldunk = true;
-      index_kimeno = 0;
-//    }
+    receive = false;
+    sending = true;
+    sendingIndex = 0;
   }
-
-
 }
 
 
@@ -431,8 +407,6 @@ void appendString(String text)
   for (int i = 0; i < len; i++) {
     msg += text[i];
   }
-  //  sendMessage += ';';
-  //  msg += text;
   msg += ';';
 }
 

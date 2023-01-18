@@ -1,4 +1,3 @@
-// #include "helper.h"
 #include <Helper.h>
 #include <ESP8266WiFi.h>
 
@@ -32,12 +31,12 @@ SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 volatile bool motorState;
 
 // Wi-Fi settings
-const char *ssid = "DIGI-tXz2";
-const char *password = "5yb4wg7DF5";
+//const char *ssid = "DIGI-tXz2";
+//const char *password = "5yb4wg7DF5";
 
 // Wi-Fi settings
-// const char* ssid = "DIGI-D69p";
-// const char* password = "8wjBc9cg";
+const char* ssid = "DIGI-D69p";
+const char* password = "8wjBc9cg";
 
 // Wi-Fi settings - uny
 // const char* ssid = "Neumann";
@@ -149,14 +148,12 @@ void loop()
   }
   Serial.println(request);
   SPI.beginTransaction(spi_settings);
-
-  //  buff[0] = motorState ? '1' : '0';
   SPI.transfer(motorState ? '1' : '0');
   delay(100);
   SPI.transfer('\n');
   delay(100);
 
-  for (int i = 0; i < 34; i++)
+  for (int i = 0; i < 33; i++)
   {
     returnbuff[i] = SPI.transfer('.');
     delay(100);
@@ -165,7 +162,7 @@ void loop()
 
   Serial.print("Reply: ");
   Serial.println(sizeof(returnbuff));
-  for (int i = 1; i < 33; i++)
+  for (int i = 1; i < 32; i++)
   {
     Serial.print(returnbuff[i]);
     //    returnbuff[i] = 0;
@@ -175,13 +172,27 @@ void loop()
 
   Serial.println();
   String motor = motorState ? "ON" : "OFF";
-  String style = "body {          font-weight: bold;          color: white;          background-color: #181123;        }     .title {       display: flex;      justify-content: center;      }      label {      font-size: 30px;      }        .info {         display: flex;          margin-bottom: 18px;      }      span {      align-self: center;      padding-left: 25px;     font-size: 18px;     }    button {     width: 80px;     height: 80px;     border-radius: 40px;     margin-right: 20px;        font-weight: bold;      background: linear-gradient(90deg, rgba(2, 0, 36, 1) 0%, rgba(76, 9, 121, 0.7071779395351891) 27%, rgba(0, 212, 255, 1) 100%);      }    button:hover {      background-color: lightblue;       cursor: pointer;      }      .buttons {       display: flex;         justify-content: center;        }";
-  String head = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n<!DOCTYPE HTML><html><head><style>" + style + "</style></head>";
-  String body = "<body><div class=\"title\"><label>Your last collected data set</label></div><br><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/9321/9321085.png\" width=\"60\" height=\"60\"><span> " + timeValue + " </span><br><br></div><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/1445/1445329.png\" width=\"60\" height=\"60\"><span>" + brightnessValue + " lux</span><br><br></div><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/1163/1163699.png\" width=\"60\" height=\"60\"><span>" + humidityValue + "%</span><br><br></div><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/6997/6997098.png\" width=\"60\" height=\"60\"><span>" + temperatureValue + "C</span></div><div class=\"info\"> <img src=\"https://cdn-icons-png.flaticon.com/512/3211/3211812.png\" width=\"60\" height=\"60\"><span>" + motor + "</span><br><br><br></div><div class=\"buttons\"><a href=\"/MOTOR=OFF\"><button>Motor Stop</button></a> <a href=\"/MOTOR=ON\"><button>Motor Start</button></a></div></body>";
-  String resp = head + body;
   // Return the response
-  client.println(resp);
-  //  client.println(getHTMLresponse(brightnessValue, temperatureValue, timeValue, himdityValue, motorValue));
+  client.println("HTTP/1.1 200 OK");
+  client.println("Content-Type: text/html");
+  client.println(""); //  d
+  client.println("<!DOCTYPE HTML>");
+  client.println("<html><head><meta http-equiv=\"refresh\" content=\"2\"><style>");
+  client.println("body {font-weight: bold; color: white; background-color: #181123;} .title { display: flex; justify-content: center;} label {font-size: 30px; } ");
+  client.println(".info { display: flex; margin-bottom: 18px;} span {align-self: center; padding-left: 25px;font-size: 18px;}");
+  client.println("button { width: 80px; height: 80px; border-radius: 40px; margin-right: 20px;  font-weight: bold; background: linear-gradient(90deg, rgba(2, 0, 36, 1) 0%, rgba(76, 9, 121, 0.7071779395351891) 27%, rgba(0, 212, 255, 1) 100%);}");
+  client.println("button:hover {background-color: lightblue;cursor: pointer;}  .buttons{display: flex;justify-content: center;}");
+  client.println("</style></head>");
+  client.println("<body>");
+  client.println("<div class=\"title\"><label>Your last collected data set</label></div><br>");
+  client.println("<div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/9321/9321085.png\" width=\"60\" height=\"60\"><span> " + timeValue + " </span><br><br></div>");
+  client.println("<div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/1445/1445329.png\" width=\"60\" height=\"60\"><span>" + brightnessValue + " lux</span><br><br></div>");
+  client.println("<div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/1163/1163699.png\" width=\"60\" height=\"60\"><span>" + humidityValue + "%</span><br><br></div>");
+  client.println("<div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/6997/6997098.png\" width=\"60\" height=\"60\"><span>" + temperatureValue + "C</span></div>");
+  client.println("<div class=\"info\"> <img src=\"https://cdn-icons-png.flaticon.com/512/3211/3211812.png\" width=\"60\" height=\"60\"><span>" + motor + "</span><br><br><br></div>");
+  client.println("<div class=\"buttons\"><a href=\"/MOTOR=OFF\"><button>Motor Stop</button></a> <a href=\"/MOTOR=ON\"><button>Motor Start</button></a></div>");
+  client.println("</body>");
+  client.println("</html>");
   client.flush();
   delay(1000);
 }
