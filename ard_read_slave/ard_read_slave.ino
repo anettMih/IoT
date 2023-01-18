@@ -136,14 +136,13 @@ SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
 
 char bejovo_uzenet[100];
 String sendMessage;
-
+String msg;
 
 byte index_bejovo;
 byte index_kimeno;
 bool fogadunk;
 bool kuldunk;
 bool vege;
-bool allRead;
 bool remoteMotor;
 
 
@@ -164,12 +163,12 @@ void setup() {
   index_bejovo = 0;
   index_kimeno = 0;
   sendMessage = "";
+  msg = "";
   remoteMotor = false;
 
   fogadunk = true; //elobb fogadunk
   kuldunk = false; //aztan kuldunk
   vege = false; //aztan vege
-  allRead = false;
 
   SPI.attachInterrupt();   //ha jon az SPIn  valami beugrik a fuggvenybe
 
@@ -213,7 +212,6 @@ void loop() {
     for (int i = 0; i < index_bejovo; i++)
       Serial.print(bejovo_uzenet[i]);
     Serial.println();
-    remoteMotor = bejovo_uzenet[0] == '1' ? true : false;
     index_bejovo = 0;
     vege = false;
     fogadunk = true;
@@ -226,11 +224,8 @@ void loop() {
 
 void collectData()
 {
-  sending_on = kuldunk;
-  if (!sending_on) {
-    sendMessage = "";
-    sendMessage += '\0';
-  }
+  msg = "";
+  msg = '\0';
   lcd.setCursor(0, 0);
   displayTime();
 
@@ -239,11 +234,14 @@ void collectData()
 
   lcd.setCursor(0, 2);
   displayBrightness();
-  if (!sending_on) {
-    sendMessage += '\n';
+  msg += '\n';
+
+  if (!kuldunk) {
+    sendMessage = "";
+    sendMessage = msg;
+        Serial.println(sendMessage.length());
+        Serial.println(sendMessage);
   }
-  allRead = true;
-  //  Serial.println(sendMessage);
   delay(1000);
 
 }
@@ -267,7 +265,7 @@ void displayTempHumidity()
     Serial.print("Read DHT11 failed, err=");
     Serial.println(err);
     if (!sending_on) {
-      sendMessage = "";
+      msg = "\0";
     }
     return;
   }
@@ -296,7 +294,7 @@ void displayBrightness()
 void displayMotor(int brightness)
 {
   lcd.setCursor(0, 2);
-  if (brightness)
+  if (brightness > 10)
   {
     lightCounter++;
     if (lightCounter >= 10)
@@ -317,18 +315,18 @@ void displayMotor(int brightness)
     lightCounter = 0;
   }
 
-  lcd.setCursor(0, 3);
+  //  lcd.setCursor(0, 3);
 
   if (light && dark)
   {
-    lcd.print("Motor is running    ");
+    //    lcd.print("Motor is running    ");
     light = false;
     dark = false;
     motorState = true;
   }
   else
   {
-    lcd.print("Motor is not running");
+    //    lcd.print("Motor is not running");
     motorState = false;
   }
   appendString(String(int(motorState)));
@@ -344,38 +342,45 @@ ISR(SPI_STC_vect)
   //kiolvassuk a kapott karaktert
   char c = SPDR;
 
-  //SPDR = 'k';
 
-  if (c == 'm')
+  if (fogadunk)
   {
+//    Serial.println("kap");
     bejovo_uzenet[index_bejovo] = c;
     index_bejovo++;
-    remoteMotor = SPDR == '1' ? true : false;
-    kuldunk = true;
+    remoteMotor = c == '1' ? true : false;
   }
 
-  if (kuldunk && allRead)
+  if (kuldunk)
   {
-
     if (index_kimeno < sendMessage.length() - 1) {
       SPDR = sendMessage[index_kimeno];
+//      Serial.print(sendMessage[index_kimeno]);
     }
-    if (index_kimeno == 32) {
+    if (index_kimeno == sendMessage.length()) {
       vege = true;
-
-      //      Serial.println("END true");
-      allRead = false;
+      fogadunk = true;
     }
     index_kimeno++;
+
   }
 
-//  if (c == '\n')
-//  {
-//    Serial.println("New line");
-//    fogadunk = false;
-//    kuldunk = true;
-//    index_kimeno = 0;
-//  }
+    if (c == '\n')
+  {
+//    if (sendMessage.length() == 0) {
+//      SPDR = '0';
+//      kuldunk = false;
+////      Serial.println("new line + wait");
+//    } else {
+////      Serial.println("new line + send");
+//      SPDR = '1';
+      fogadunk = false;
+      kuldunk = true;
+      index_kimeno = 0;
+//    }
+  }
+
+
 }
 
 
@@ -422,23 +427,26 @@ void showSunChart()
 
 void appendString(String text)
 {
-
-  if (!sending_on) {
-    int len = text.length();
-    for (int i = 0; i < len; i++) {
-      sendMessage += text[i];
-    }
-    sendMessage += ';';
+  int len = text.length();
+  for (int i = 0; i < len; i++) {
+    msg += text[i];
   }
+  //  sendMessage += ';';
+  //  msg += text;
+  msg += ';';
 }
 
 void startMotor()
 {
+  lcd.setCursor(0, 3);
   if (motorState || remoteMotor)
   {
+    lcd.setCursor(0, 3);
+    lcd.print("Motor is running    ");
     motor.step(steps_per_rev);
     motor.step(steps_per_rev);
-    motorState = false;
+    motor.step(steps_per_rev);
+    motor.step(steps_per_rev);
   }
-
+  lcd.print("Motor is not running");
 }

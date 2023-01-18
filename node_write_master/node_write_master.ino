@@ -1,26 +1,47 @@
+// #include "helper.h"
+#include <Helper.h>
 #include <ESP8266WiFi.h>
 
-//https://iot23-99a34-default-rtdb.europe-west1.firebasedatabase.app/
-//AIzaSyAdKdWm_o2VM6r8QctncsX-aKVjQdLsadw
 #include <Firebase_ESP_Client.h>
 
-#include<SPI.h>
+// Provide the token generation process info.
+#include "addons/TokenHelper.h"
+// Provide the RTDB payload printing info and other helper functions.
+#include "addons/RTDBHelper.h"
 
-//char buff[] = "S\n";
+// Insert Firebase project API Key
+#define API_KEY "AIzaSyB6NuA_1hEXGd2OSqmbfIicu0Q7A5vpf2k"
+
+// Insert RTDB URLefine the RTDB URL */
+#define DATABASE_URL "https://iot23-89364-default-rtdb.europe-west1.firebasedatabase.app/"
+
+// Define Firebase Data object
+FirebaseData fbdo;
+
+FirebaseAuth auth;
+FirebaseConfig config;
+
+#include <SPI.h>
+
+char buff[] = "S\n";
 char kuldes_tesztje[20];
 char returnbuff[32];
 
 SPISettings spi_settings(100000, MSBFIRST, SPI_MODE0);
-//100 kHz legyen a sebesseg, a Node tud 80MHzt de az Arduino csak 16MHzt
+// 100 kHz legyen a sebesseg, a Node tud 80MHzt de az Arduino csak 16MHzt
 volatile bool motorState;
 
 // Wi-Fi settings
-//const char* ssid = "DIGI-D69p";
-//const char* password = "8wjBc9cg";
+const char *ssid = "DIGI-tXz2";
+const char *password = "5yb4wg7DF5";
+
+// Wi-Fi settings
+// const char* ssid = "DIGI-D69p";
+// const char* password = "8wjBc9cg";
 
 // Wi-Fi settings - uny
-const char* ssid = "Neumann";
-const char* password = "neumann1";
+// const char* ssid = "Neumann";
+// const char* password = "neumann1";
 
 // Values received from payload
 String brightnessValue = "";
@@ -29,9 +50,12 @@ String humidityValue = "";
 String timeValue = "";
 String motorValue = "";
 
+// Firebase related
+unsigned long sendDataPrevMillis = 0;
+int count = 0;
+bool signupOK = false;
 
 WiFiServer server(80);
-
 
 void setup()
 {
@@ -39,8 +63,8 @@ void setup()
   Serial.begin(9600);
   motorState = false;
   Serial.println("Node start");
-  SPI.begin();
 
+  SPI.begin();
   delay(10);
 
   // Connect to WiFi network
@@ -69,15 +93,37 @@ void setup()
   Serial.print("http://");
   Serial.print(WiFi.localIP());
   Serial.println("/");
+
+  /* Assign the api key (required) */
+  config.api_key = API_KEY;
+  Serial.println("API key set");
+
+  /* Assign the RTDB URL (required) */
+  config.database_url = DATABASE_URL;
+  Serial.println("DB url set");
+  /* Sign up */
+  if (Firebase.signUp(&config, &auth, "", ""))
+  {
+    Serial.println("ok");
+    signupOK = true;
+  }
+  else
+  {
+    Serial.printf("%s\n", config.signer.signupError.message.c_str());
+  }
+
+  /* Assign the callback function for the long running token generation task */
+  config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
+
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
 }
 
 void loop()
 {
 
-  SPI.beginTransaction(spi_settings);
   // Check if a client has connected
   WiFiClient client = server.available();
-
   if (!client)
   {
     return;
@@ -89,6 +135,7 @@ void loop()
   {
     delay(1);
   }
+
   // Read the first line of the request
   String request = client.readStringUntil('\r');
   if (request.indexOf("/MOTOR=ON") != -1)
@@ -101,102 +148,155 @@ void loop()
     motorState = false;
   }
   Serial.println(request);
+  SPI.beginTransaction(spi_settings);
 
-//  buff[0] = motorState ? '1' : '0';
-  //elkuldi az uzenetet
-  SPI.transfer('m');
+  //  buff[0] = motorState ? '1' : '0';
   SPI.transfer(motorState ? '1' : '0');
-  SPI.transfer('.');
-//  for (int i = 0; i < sizeof(buff); i++)
-//  {
-//    kuldes_tesztje[i] = SPI.transfer(buff[i]);
-//    delay(1);
-//  }
+  delay(100);
+  SPI.transfer('\n');
+  delay(100);
 
-  //kuld meg 100 pontot,ezeket az Arduino felulirja
-  //ami visszajon azt kiolvassuk betesszuk a returnbuffbe
-  for (int i = 0; i < 32; i++)
+  for (int i = 0; i < 34; i++)
   {
     returnbuff[i] = SPI.transfer('.');
     delay(100);
   }
   SPI.endTransaction();
 
-//  for (int i = 1; i < sizeof(buff) + 1; i++)
-//    Serial.print(kuldes_tesztje[i]);
-
-  Serial.println("Reply: ");
-  handleSignals();
-  for (int i = 0; i < 32; i++) {
+  Serial.print("Reply: ");
+  Serial.println(sizeof(returnbuff));
+  for (int i = 1; i < 33; i++)
+  {
     Serial.print(returnbuff[i]);
-    returnbuff[i] = 0;
+    //    returnbuff[i] = 0;
   }
+  Serial.println();
+  handleSignals();
 
   Serial.println();
+  String motor = motorState ? "ON" : "OFF";
+  String style = "body {          font-weight: bold;          color: white;          background-color: #181123;        }     .title {       display: flex;      justify-content: center;      }      label {      font-size: 30px;      }        .info {         display: flex;          margin-bottom: 18px;      }      span {      align-self: center;      padding-left: 25px;     font-size: 18px;     }    button {     width: 80px;     height: 80px;     border-radius: 40px;     margin-right: 20px;        font-weight: bold;      background: linear-gradient(90deg, rgba(2, 0, 36, 1) 0%, rgba(76, 9, 121, 0.7071779395351891) 27%, rgba(0, 212, 255, 1) 100%);      }    button:hover {      background-color: lightblue;       cursor: pointer;      }      .buttons {       display: flex;         justify-content: center;        }";
+  String head = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n<!DOCTYPE HTML><html><head><style>" + style + "</style></head>";
+  String body = "<body><div class=\"title\"><label>Your last collected data set</label></div><br><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/9321/9321085.png\" width=\"60\" height=\"60\"><span> " + timeValue + " </span><br><br></div><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/1445/1445329.png\" width=\"60\" height=\"60\"><span>" + brightnessValue + " lux</span><br><br></div><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/1163/1163699.png\" width=\"60\" height=\"60\"><span>" + humidityValue + "%</span><br><br></div><div class=\"info\"><img src=\"https://cdn-icons-png.flaticon.com/512/6997/6997098.png\" width=\"60\" height=\"60\"><span>" + temperatureValue + "C</span></div><div class=\"info\"> <img src=\"https://cdn-icons-png.flaticon.com/512/3211/3211812.png\" width=\"60\" height=\"60\"><span>" + motor + "</span><br><br><br></div><div class=\"buttons\"><a href=\"/MOTOR=OFF\"><button>Motor Stop</button></a> <a href=\"/MOTOR=ON\"><button>Motor Start</button></a></div></body>";
+  String resp = head + body;
   // Return the response
-  client.println("HTTP/1.1 200 OK");
-  client.println("Content-Type: text/html");
-  client.println(""); //  do not forget this one
-  client.println("<!DOCTYPE HTML>");
-  client.println("<html>");
-  client.print("<meta http-equiv=\"refresh\" content=\"2\">");
-  client.println("<body style=\"background-color:powderblue;\">");
-  client.println("<label>Fenyero:</label><br>");
-  client.println("<p>" + brightnessValue + "</p><br>");
-  client.println("<label>Homerseklet:</label><br>");
-  client.println("<p>" + temperatureValue + "</p><br>");
-  client.println("<label>Nedvessegtartalom:</label><br>");
-  client.println("<p>" + humidityValue + "</p><br>");
-  client.println("<label>Ido: </label><br>");
-  client.println("<p>" + timeValue + "</p><br><br>");
-  client.println("<label>Motor: </label><br>");
-  client.println("<p>" + String(motorState) + "</p><br><br>");
-  client.println("<a href=\"/MOTOR=OFF\"\"><button>Megallit Motor</button></a>");
-  client.println("<a href=\"/MOTOR=ON\"\"><button>Elindit Motor</button></a>");
-  client.println("</body>");
+  client.println(resp);
+  //  client.println(getHTMLresponse(brightnessValue, temperatureValue, timeValue, himdityValue, motorValue));
   client.flush();
   delay(1000);
 }
 
-
-void handleSignals() {
+void handleSignals()
+{
   brightnessValue = "";
   temperatureValue = "";
   humidityValue = "";
   timeValue = "";
   motorValue = "";
-  int i = 0;
-  while (returnbuff[i] != ';') {
+  int i = 1;
+  while (returnbuff[i] != ';')
+  {
     timeValue += returnbuff[i];
     i++;
   }
-  timeValue += '\n';
   i++;
-  while (returnbuff[i] != ';') {
+
+  while (returnbuff[i] != ';')
+  {
     temperatureValue += returnbuff[i];
     i++;
   }
-  temperatureValue += '\n';
   i++;
-  while (returnbuff[i] != ';') {
+
+  while (returnbuff[i] != ';')
+  {
     humidityValue += returnbuff[i];
     i++;
   }
-  humidityValue += '\n';
+
   i++;
-  while (returnbuff[i] != ';') {
+  while (returnbuff[i] != ';')
+  {
     brightnessValue += returnbuff[i];
     i++;
   }
-  brightnessValue += '\n';
   i++;
+
   motorValue = returnbuff[i];
-  motorValue += '\n';
+
   Serial.print("Time: " + timeValue);
   Serial.print("Temp: " + temperatureValue);
   Serial.print("Hum: " + humidityValue);
   Serial.print("Light: " + brightnessValue);
   Serial.print("Motor: " + motorValue);
+  writeToFirebase();
+}
 
+// Sends received values & motorValue to Firebase
+void writeToFirebase()
+{
+  if (Firebase.ready() && signupOK)
+  {
 
+    if (Firebase.RTDB.setString(&fbdo, "signals/time", timeValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+    count++;
+
+    if (Firebase.RTDB.setString(&fbdo, "signals/temp", temperatureValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.setString(&fbdo, "signals/humidity", humidityValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.setString(&fbdo, "signals/brightness", brightnessValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+
+    if (Firebase.RTDB.setString(&fbdo, "signals/motor", motorValue))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else
+    {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+  }
 }
